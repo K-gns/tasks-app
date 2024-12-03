@@ -1,0 +1,46 @@
+version: "3.8"
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+    environment:
+      REDIS_HOST: redis
+      DATABASE_URL: postgresql+asyncpg://user:password@db/tasks
+    ports:
+      - "8000:8000"
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: dramatiq app.tasks --processes 1 --threads 4
+    depends_on:
+      - redis
+    environment:
+      REDIS_HOST: redis
+      DATABASE_URL: postgresql+asyncpg://user:password@db/tasks
+
+  redis:
+    image: redis:6.2
+    ports:
+      - "6379:6379"
+
+  db:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: tasks
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:
