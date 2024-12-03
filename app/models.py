@@ -1,6 +1,12 @@
 # app/models.py
 from databases import Database
 
+from pydantic import BaseModel
+
+class TaskCreate(BaseModel):
+    query: str
+    parameters: dict
+
 # Пример модели, где запросы будут выполняться напрямую
 class TaskResult:
     def __init__(self, task_id: int, status: str, result: str):

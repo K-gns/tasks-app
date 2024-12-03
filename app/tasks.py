@@ -1,19 +1,17 @@
-# app/tasks.py
-from .models import TaskResult
+from dramatiq import actor
 from .db import database
-import time  # Для имитации выполнения задачи
+import asyncio
 
+@actor
+def execute_task(query: str, parameters: dict, task_id: int):
+    asyncio.run(run_task(query, parameters, task_id))
 
-async def execute_task(query: str, parameters: dict, task_id: int):
-    # Имитация выполнения задачи
-    await simulate_long_task()  # Задача выполняется асинхронно
-    task_result = TaskResult(task_id=task_id, status="completed", result="Task finished")  # Пример результата задачи
+async def run_task(query: str, parameters: dict, task_id: int):
+    await simulate_long_task()
 
-    # Сохранение результата в базу данных
-    # Для этого нужно создать сессию базы данных через database
-    query = f"INSERT INTO task_results (task_id, status, result) VALUES ({task_id}, 'completed', 'Task finished')"
-    await database.execute(query)  # Пример асинхронной записи в базу данных
-
+    query = "INSERT INTO task_results (task_id, status, result) VALUES (:task_id, :status, :result)"
+    values = {"task_id": task_id, "status": "completed", "result": "Task finished"}
+    await database.execute(query=query, values=values)
 
 async def simulate_long_task():
-    time.sleep(5)  # Симуляция долгой работы (можно заменить на реальный код)
+    await asyncio.sleep(5)
