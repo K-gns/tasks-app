@@ -16,20 +16,28 @@ services:
       - "8000:8000"
 
   worker:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: Dockerfile
-    command: dramatiq app.tasks --processes 1 --threads 4
+    command: dramatiq app.tasks --processes 1 --threads 1
     depends_on:
       - redis
     environment:
       REDIS_HOST: redis
       DATABASE_URL: postgresql+asyncpg://user:password@db/tasks
+    expose:
+      - "9191"
 
   redis:
-    image: redis:6.2
-    ports:
-      - "6379:6379"
+    restart: unless-stopped
+    image: redis:latest
+#    ports:
+#      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    expose:
+      - "6379"
 
   db:
     image: postgres:14
@@ -44,3 +52,5 @@ services:
 
 volumes:
   db_data:
+  redis_data:
+

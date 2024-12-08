@@ -1,7 +1,7 @@
 # app/db.py
 from databases import Database
 
-DATABASE_URL = "postgresql+asyncpg://postgres:1159@localhost/tasks"
+DATABASE_URL = "postgresql+asyncpg://postgres:1159@db/tasks"
 
 # Подключение через databases для асинхронного доступа
 database = Database(DATABASE_URL)
