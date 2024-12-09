@@ -2,6 +2,7 @@
 from databases import Database
 
 from pydantic import BaseModel
+from typing import Optional
 
 class TaskCreate(BaseModel):
     query: str
@@ -13,3 +14,7 @@ class TaskResult:
         self.task_id = task_id
         self.status = status
         self.result = result
+
+class TaskCreate(BaseModel):
+    query: str  # Запрос, который нужно выполнить
+    parameters: Optional[dict] = None  # Параметры для запроса (если они есть)
