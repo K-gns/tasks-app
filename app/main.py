@@ -1,7 +1,7 @@
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import RedirectResponse
-from .tasks import execute_task
+from .tasks import execute_task, schedule_task
 from .models import TaskCreate
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -100,9 +100,7 @@ async def create_task_form(request: Request,
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error inserting task: {str(e)}")
 
-    # Если задача должна быть выполнена немедленно
-    if not scheduled_time or scheduled_time <= datetime.utcnow():
-        execute_task.send(task['id'])
+    await schedule_task(task['id'], task['scheduled_time'])
 
     return RedirectResponse(url="/tasks", status_code=303)
 
