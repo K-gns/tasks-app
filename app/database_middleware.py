@@ -1,17 +1,14 @@
-import asyncio
-from dramatiq import Middleware
-from .db import connect_to_database, disconnect_from_database
+import dramatiq
+from dramatiq.middleware import Middleware
+from app.db import database
 
 class DatabaseMiddleware(Middleware):
-    """Middleware для управления подключением к базе данных."""
+    async def before_enqueue(self, broker, message):
+        print("Connecting to database before processing message")
+        if not database.is_connected:
+            await database.connect()
 
-    def before_worker_boot(self, broker, worker):
-        """Подключение к базе данных при старте worker."""
-        asyncio.run(connect_to_database())
-
-    def after_worker_shutdown(self, broker, worker):
-        """Отключение от базы данных при завершении worker."""
-        asyncio.run(disconnect_from_database())
-
-# Инициализация middleware
-database_middleware = DatabaseMiddleware()
+    async def after_enqueue(self, broker, message, *, result=None, exception=None):
+        print("Disconnecting from database after processing message")
+        if database.is_connected:
+            await database.disconnect()

@@ -1,6 +1,6 @@
 from datetime import datetime
-
 from fastapi import FastAPI, Request, Form, HTTPException
+from fastapi.responses import RedirectResponse
 from .tasks import execute_task
 from .models import TaskCreate
 from fastapi.responses import HTMLResponse
@@ -9,6 +9,7 @@ from .db import database, connect_to_database, disconnect_from_database, create_
 import uuid
 import json
 
+# Асинхронный обработчик жизненного цикла приложения
 async def app_lifespan(app):
     """Обработчик жизненного цикла приложения."""
     # Действия при старте приложения
@@ -24,54 +25,54 @@ templates = Jinja2Templates(directory="app/templates")
 # Заглушка для данных задач
 TASKS = [{"id": 1, "query": "SELECT * FROM users", "status": "pending"}]
 
-
-
+# Отображение списка задач
 @app.get("/", response_class=HTMLResponse)
 async def read_tasks(request: Request):
     return templates.TemplateResponse("tasks.html", {"request": request, "tasks": TASKS})
 
+# Получение всех задач из базы данных
 @app.get("/tasks", response_class=HTMLResponse)
 async def get_tasks(request: Request):
     query = "SELECT * FROM tasks"
     tasks = await database.fetch_all(query)
     return templates.TemplateResponse(
         "tasks.html",
-        {"request": request, "tasks": tasks}
+        {"request": request, "tasks": tasks[::-1]}
     )
 
-# task create with api
-@app.post("/tasks/create/api", response_class=HTMLResponse)
-async def create_task(request: Request, task: TaskCreate):
-    # Генерация уникального идентификатора задачи
-    task_id = str(uuid.uuid4())
-
-    # Сериализация параметров запроса в строку (если они есть)
-    parameters_str = json.dumps(task.parameters) if task.parameters else None
-
-    # Вставка задачи в базу данных
-    query = """
-    INSERT INTO tasks (query, parameters, status)
-    VALUES (:query, :parameters, 'pending')
-    """
-    values = {
-        "query": task.query,
-        "parameters": parameters_str
-    }
-
-    try:
-        # Вставляем данные в таблицу tasks
-        await database.execute(query, values)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error inserting task: {str(e)}")
-
-    return templates.TemplateResponse("task_created.html", {"request": request, "task_id": task_id})
+# Создание задачи через API
+# @app.post("/tasks/create/api", response_class=HTMLResponse)
+# async def create_task(request: Request, task: TaskCreate):
+#     # Генерация уникального идентификатора задачи
+#     task_id = str(uuid.uuid4())
+#
+#     # Сериализация параметров запроса в строку (если они есть)
+#     parameters_str = json.dumps(task.parameters) if task.parameters else None
+#
+#     # Вставка задачи в базу данных
+#     query = """
+#     INSERT INTO tasks (query, parameters, status)
+#     VALUES (:query, :parameters, 'pending')
+#     """
+#     values = {
+#         "query": task.query,
+#         "parameters": parameters_str
+#     }
+#
+#     try:
+#         # Асинхронная вставка задачи в таблицу
+#         await database.execute(query, values)
+#     except Exception as e:
+#         raise HTTPException(status_code=400, detail=f"Error inserting task: {str(e)}")
+#
+#     return templates.TemplateResponse("task_created.html", {"request": request, "task_id": task_id})
 
 # Создание задачи через форму
-@app.post("/tasks/create/", response_class=HTMLResponse)
-async def create_task(request: Request,
-                      query: str = Form(...),  # Получаем запрос через форму
-                      parameters: str = Form(None),  # Получаем параметры как строку
-                      scheduled_time: str = Form(None)):  # Получаем время запуска
+@app.post("/tasks/create/", response_class=RedirectResponse)
+async def create_task_form(request: Request,
+                            query: str = Form(...),  # Получаем запрос через форму
+                            parameters: str = Form(None),  # Получаем параметры как строку
+                            scheduled_time: str = Form(None)):  # Получаем время запуска
 
     # Преобразование строки параметров в словарь, если они присутствуют
     parameters_dict = json.loads(parameters) if parameters else None
@@ -83,7 +84,7 @@ async def create_task(request: Request,
     query_insert = """
     INSERT INTO tasks (query, parameters, status, scheduled_time)
     VALUES (:query, :parameters, 'pending', :scheduled_time)
-    RETURNING id
+    RETURNING id, query, parameters, status, created_at, updated_at, scheduled_time
     """
 
     # Подготовка значений для вставки
@@ -95,16 +96,15 @@ async def create_task(request: Request,
 
     try:
         # Выполняем запрос вставки и получаем task_id
-        task_id = await database.fetch_val(query_insert, values)
+        task = await database.fetch_one(query_insert, values)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error inserting task: {str(e)}")
 
     # Если задача должна быть выполнена немедленно
     if not scheduled_time or scheduled_time <= datetime.utcnow():
-        execute_task.send(task_id)
+        execute_task.send(task['id'])
 
-    # Возвращаем HTML-страницу с task_id
-    return templates.TemplateResponse("task_created.html", {"request": request, "task_id": task_id})
+    return RedirectResponse(url="/tasks", status_code=303)
 
 # Запуск задачи
 @app.post("/tasks/{task_id}/run")

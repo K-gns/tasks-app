@@ -3,9 +3,8 @@ import dramatiq
 from dramatiq import actor
 from dramatiq.brokers.redis import RedisBroker
 from dramatiq.middleware import AsyncIO
-from dramatiq import Middleware
 from datetime import datetime, timedelta
-from app.database_middleware  import database_middleware
+from app.database_middleware  import DatabaseMiddleware
 
 from .db import database, connect_to_database, disconnect_from_database, fetch_task_by_id
 
@@ -16,7 +15,7 @@ redis_host = os.getenv("REDIS_HOST", "redis")
 print(f"Connecting to Redis at: {redis_host}")
 redis_broker = RedisBroker(host=redis_host)
 redis_broker.add_middleware(AsyncIO())
-redis_broker.add_middleware(database_middleware)
+redis_broker.add_middleware(DatabaseMiddleware())
 dramatiq.set_broker(redis_broker)
 
 # Таблицы для хранения задач и результатов
@@ -25,6 +24,8 @@ RESULTS_TABLE = "task_results"
 
 @actor(max_retries=3)   # Автоматический перезапуск до 3 раз при сбоях
 async def execute_task(task_id: int):
+    if not database.is_connected:
+        await database.connect()
     print(f"Processing task {task_id}")
     try:
         query = "SELECT * FROM tasks WHERE id = :task_id"
@@ -35,43 +36,43 @@ async def execute_task(task_id: int):
             print(f"Task {task_id} not found")
             return
 
+        print(f"Starting Running task {task_id}")
         await run_task(task_id)
     except Exception as e:
         print(f"Error processing task {task_id}: {e}")
 
 
 async def run_task(task_id: int):
-    """Выполнение задачи с обновлением статуса в базе данных."""
-    task = await fetch_task_by_id(task_id)
+        task = await fetch_task_by_id(task_id)
 
-    if not task:
-        print(f"Task {task_id} not found")
-        return
+        if not task:
+            print(f"Task {task_id} not found")
+            return
 
-    # Обновляем статус задачи на "running"
-    await update_task_status(task_id, "running")
+        # Обновляем статус задачи на "running"
+        await update_task_status(task_id, "running")
 
-    try:
-        scheduled_time = task["scheduled_time"]
-        if scheduled_time > datetime.utcnow():
-            # Задача еще не должна выполняться, откладываем выполнение
-            delay = (scheduled_time - datetime.utcnow()).total_seconds()
-            print(f"Task {task_id} scheduled to run at {scheduled_time}. Delaying for {delay} seconds.")
-            await asyncio.sleep(delay)
+        try:
+            scheduled_time = task["scheduled_time"]
+            if scheduled_time > datetime.utcnow():
+                # Задача еще не должна выполняться, откладываем выполнение
+                delay = (scheduled_time - datetime.utcnow()).total_seconds()
+                print(f"Task {task_id} scheduled to run at {scheduled_time}. Delaying for {delay} seconds.")
+                await asyncio.sleep(delay)
 
-        # Здесь выполняем задачу (например, запуск запроса)
-        # Например, можно выполнить запрос task['query']
-        result = f"Executed query: {task['query']} with parameters: {task['parameters']}"
+            # Выполняем задачу (например, выполнение запроса)
+            result = f"Executed query: {task['query']} with parameters: {task['parameters']}"
 
-        # Сохраняем результат в таблице результатов
-        await save_task_result(task_id, "completed", result)
-        print(f"Task {task_id} completed successfully.")
+            # Сохраняем результат в таблице результатов
+            await save_task_result(task_id, "completed", result)
+            print(f"Task {task_id} completed successfully.")
 
-    except Exception as e:
-        # В случае ошибки обновляем статус задачи на "failed"
-        error_message = str(e)
-        await save_task_result(task_id, "failed", error_message)
-        print(f"Task {task_id} failed with error: {error_message}")
+        except Exception as e:
+            # В случае ошибки обновляем статус задачи на "failed"
+            error_message = str(e)
+            await save_task_result(task_id, "failed", error_message)
+            print(f"Task {task_id} failed with error: {error_message}")
+
 
 
 

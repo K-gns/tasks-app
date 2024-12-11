@@ -4,7 +4,7 @@ from datetime import datetime
 
 # Подключение к PostgreSQL через databases
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://user:pwd123@db/tasks")
-database = Database(DATABASE_URL, min_size=5, max_size=20)
+database = Database(DATABASE_URL, min_size=10, max_size=50)
 
 async def connect_to_database():
     """Подключение к базе данных."""
