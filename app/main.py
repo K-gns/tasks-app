@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import FastAPI, Request, Form, HTTPException
 from .tasks import execute_task
 from .models import TaskCreate
@@ -64,44 +66,55 @@ async def create_task(request: Request, task: TaskCreate):
 
     return templates.TemplateResponse("task_created.html", {"request": request, "task_id": task_id})
 
-# Task create with form
+# Создание задачи через форму
 @app.post("/tasks/create/", response_class=HTMLResponse)
 async def create_task(request: Request,
                       query: str = Form(...),  # Получаем запрос через форму
-                      parameters: str = Form(None)):  # Получаем параметры как строку
-
-    # Генерация уникального идентификатора задачи
-    task_id = str(uuid.uuid4())
+                      parameters: str = Form(None),  # Получаем параметры как строку
+                      scheduled_time: str = Form(None)):  # Получаем время запуска
 
     # Преобразование строки параметров в словарь, если они присутствуют
     parameters_dict = json.loads(parameters) if parameters else None
 
-    # Вставка задачи в базу данных
+    # Преобразуем время запуска из строки в объект datetime, если оно указано
+    scheduled_time = datetime.fromisoformat(scheduled_time) if scheduled_time else None
+
+    # SQL-запрос для вставки задачи
     query_insert = """
-    INSERT INTO tasks (query, parameters, status)
-    VALUES (:query, :parameters, 'pending')
+    INSERT INTO tasks (query, parameters, status, scheduled_time)
+    VALUES (:query, :parameters, 'pending', :scheduled_time)
+    RETURNING id
     """
+
+    # Подготовка значений для вставки
     values = {
         "query": query,
-        "parameters": json.dumps(parameters_dict) if parameters_dict else None
+        "parameters": json.dumps(parameters_dict) if parameters_dict else None,
+        "scheduled_time": scheduled_time or datetime.utcnow()  # Если время не указано, ставим текущее время
     }
 
     try:
-        # Вставляем данные в таблицу tasks
-        await database.execute(query_insert, values)
+        # Выполняем запрос вставки и получаем task_id
+        task_id = await database.fetch_val(query_insert, values)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error inserting task: {str(e)}")
 
-    # После того как задача создана, перенаправляем на страницу подтверждения
+    # Если задача должна быть выполнена немедленно
+    if not scheduled_time or scheduled_time <= datetime.utcnow():
+        execute_task.send(task_id)
+
+    # Возвращаем HTML-страницу с task_id
     return templates.TemplateResponse("task_created.html", {"request": request, "task_id": task_id})
 
-
+# Запуск задачи
 @app.post("/tasks/{task_id}/run")
 async def run_task(task_id: int):
-    # Имитация запуска задачи
+    # Запуск задачи через актор Dramatiq
     print(f"Running task {task_id}")
+    execute_task.send(task_id)  # Отправляем задачу в очередь
     return {"message": "Task started"}
 
+# Получение результатов задач
 @app.get("/tasks/results", response_class=HTMLResponse)
 async def get_task_results(request: Request):
     query = "SELECT * FROM task_results"

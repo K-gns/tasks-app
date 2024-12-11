@@ -3,6 +3,7 @@ from databases import Database
 
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
 
 class TaskCreate(BaseModel):
     query: str
@@ -18,3 +19,4 @@ class TaskResult:
 class TaskCreate(BaseModel):
     query: str  # Запрос, который нужно выполнить
     parameters: Optional[dict] = None  # Параметры для запроса (если они есть)
+    scheduled_time: Optional[datetime] = None

@@ -2,32 +2,47 @@ import os
 import dramatiq
 from dramatiq import actor
 from dramatiq.brokers.redis import RedisBroker
+from dramatiq.middleware import AsyncIO
+from dramatiq import Middleware
+from datetime import datetime, timedelta
+from app.database_middleware  import database_middleware
 
-from .db import database  # Предполагается, что database — это подключение к базе через `databases`
+from .db import database, connect_to_database, disconnect_from_database, fetch_task_by_id
+
 import asyncio
 
 # Настройка брокера Redis
 redis_host = os.getenv("REDIS_HOST", "redis")
 print(f"Connecting to Redis at: {redis_host}")
 redis_broker = RedisBroker(host=redis_host)
+redis_broker.add_middleware(AsyncIO())
+redis_broker.add_middleware(database_middleware)
 dramatiq.set_broker(redis_broker)
 
 # Таблицы для хранения задач и результатов
 TASKS_TABLE = "tasks"
 RESULTS_TABLE = "task_results"
 
+@actor(max_retries=3)   # Автоматический перезапуск до 3 раз при сбоях
+async def execute_task(task_id: int):
+    print(f"Processing task {task_id}")
+    try:
+        query = "SELECT * FROM tasks WHERE id = :task_id"
+        task = await database.fetch_one(query, values={"task_id": task_id})
+        print(f"Get tasked {task_id}")
 
-@actor(max_retries=3)  # Автоматический перезапуск до 3 раз при сбоях
-def execute_task(task_id: int):
-    """Основной актор для выполнения задачи."""
-    asyncio.run(run_task(task_id))
+        if not task:
+            print(f"Task {task_id} not found")
+            return
+
+        await run_task(task_id)
+    except Exception as e:
+        print(f"Error processing task {task_id}: {e}")
 
 
 async def run_task(task_id: int):
     """Выполнение задачи с обновлением статуса в базе данных."""
-    # Получаем информацию о задаче
-    query = f"SELECT query, parameters FROM {TASKS_TABLE} WHERE id = :task_id"
-    task = await database.fetch_one(query=query, values={"task_id": task_id})
+    task = await fetch_task_by_id(task_id)
 
     if not task:
         print(f"Task {task_id} not found")
@@ -37,21 +52,27 @@ async def run_task(task_id: int):
     await update_task_status(task_id, "running")
 
     try:
-        # Имитация выполнения задачи
-        await simulate_long_task()
+        scheduled_time = task["scheduled_time"]
+        if scheduled_time > datetime.utcnow():
+            # Задача еще не должна выполняться, откладываем выполнение
+            delay = (scheduled_time - datetime.utcnow()).total_seconds()
+            print(f"Task {task_id} scheduled to run at {scheduled_time}. Delaying for {delay} seconds.")
+            await asyncio.sleep(delay)
 
-        # Здесь добавьте реальную логику выполнения задачи, например выполнение SQL-запроса
-        # или вызов внешнего API. В данном примере используется заглушка.
+        # Здесь выполняем задачу (например, запуск запроса)
+        # Например, можно выполнить запрос task['query']
         result = f"Executed query: {task['query']} with parameters: {task['parameters']}"
 
-        # Сохраняем результат в базу данных
+        # Сохраняем результат в таблице результатов
         await save_task_result(task_id, "completed", result)
-        print(f"Task {task_id} completed successfully")
+        print(f"Task {task_id} completed successfully.")
+
     except Exception as e:
-        # Обновляем статус задачи на "failed" в случае ошибки
+        # В случае ошибки обновляем статус задачи на "failed"
         error_message = str(e)
         await save_task_result(task_id, "failed", error_message)
         print(f"Task {task_id} failed with error: {error_message}")
+
 
 
 async def update_task_status(task_id: int, status: str):
