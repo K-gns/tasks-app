@@ -1,13 +1,28 @@
+import json
 import os
 import dramatiq
-from dramatiq import actor
+from dramatiq import actor, Middleware
 from dramatiq.brokers.redis import RedisBroker
 from dramatiq.middleware import AsyncIO
 from datetime import datetime, timedelta
-from app.database_middleware import DatabaseMiddleware
+# from app.database_middleware import DatabaseMiddleware
 import redis
 from .db import database, connect_to_database, disconnect_from_database, fetch_task_by_id
 import asyncio
+
+class DatabaseMiddleware(Middleware):
+    """Middleware для подключения к базе данных."""
+    def before_task(self, broker, message):
+        """Подключение к базе перед выполнением задачи."""
+        if not database.is_connected:
+            broker.logger.debug("Connecting to database.")
+            broker.loop.run_until_complete(database.connect())
+
+    def after_task(self, broker, message, result=None, exception=None):
+        """Закрытие соединения после выполнения задачи."""
+        if database.is_connected:
+            broker.logger.debug("Disconnecting from database.")
+            broker.loop.run_until_complete(database.disconnect())
 
 # Настройка брокера Redis
 redis_host = os.getenv("REDIS_HOST", "redis")
@@ -86,49 +101,3 @@ async def save_task_result(task_id: int, status: str, result: str):
     values = {"task_id": task_id, "status": status, "result": result}
     await database.execute(query=query, values=values)
 
-
-async def schedule_task(task_id: int, scheduled_time: datetime):
-    """Добавление задачи в Redis с отложенным временем."""
-    timestamp = scheduled_time.timestamp()  # Преобразование в UNIX timestamp
-    redis_client.zadd("scheduled_tasks", {task_id: timestamp})
-    print(f"Task {task_id} scheduled at {scheduled_time}")
-
-
-async def process_scheduled_tasks():
-    """Периодическая проверка задач в Redis."""
-    while True:
-        now = datetime.utcnow().timestamp()
-        print("process_scheduled_tasks...")
-
-        # Получаем задачи, которые должны быть выполнены
-        tasks = redis_client.zrangebyscore("scheduled_tasks", 0, now, start=0, num=10)
-
-        for task_id in tasks:
-            task_id = int(task_id)
-            print(f"Executing scheduled task {task_id}")
-
-            # Запуск задачи
-            execute_task.send(task_id)
-
-            # Удаляем задачу из Redis, так как она была выполнена
-            redis_client.zrem("scheduled_tasks", task_id)
-
-        # Пауза между проверками
-        await asyncio.sleep(5)  # Проверка каждые 5 секунд
-
-
-async def add_task_to_schedule(task_id: int, scheduled_time: datetime):
-    """Добавление задачи в расписание с отложенным временем."""
-    await schedule_task(task_id, scheduled_time)
-
-
-# Периодическая задача для проверки и выполнения отложенных
-async def start_scheduled_task_processor():
-    """Запуск задачи, которая будет обрабатывать отложенные задачи."""
-    print("Checking for scheduled tasks...")
-    while True:
-        await process_scheduled_tasks()
-
-# Запуск фонового процесса для обработки отложенных задач
-loop = asyncio.get_event_loop()
-loop.create_task(start_scheduled_task_processor())  # Запуск фоновой задачи

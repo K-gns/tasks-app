@@ -1,42 +1,106 @@
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
-from app.db import get_db  # Импортируем функцию для работы с БД
-from app.models import Task  # Модель для задач
-from app.tasks import execute_task  # Функция для выполнения задачи, интеграция с Dramatiq
+import asyncio
+from datetime import datetime
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 
-# Функция для выполнения задачи
-def schedule_task(query: str, parameters: dict, task_id: str):
-    print(f"Executing task {task_id} with query: {query} and parameters: {parameters}")
-
-    # Пример запроса к БД (можно изменить на свою логику)
-    with get_db() as db:
-        result = db.execute(query, parameters)
-        # Задача может быть выполнена через Dramatiq
-        execute_task.delay(result)
+from app.db import database, fetch_task_by_id  # Импортируем функцию для работы с БД
+from app.tasks import execute_task, update_task_status, \
+    TASKS_TABLE  # Функция для выполнения задачи, интеграция с Dramatiq
 
 
 # Инициализация планировщика
-scheduler = BackgroundScheduler()
+scheduler = AsyncIOScheduler()
 
 
 # Функция для старта планировщика
 def start_scheduler():
+    print("Trying to start scheduler...")
+
     # Запуск планировщика только если он еще не был запущен
     if not scheduler.running:
         scheduler.start()
 
-    # Добавление задачи в планировщик (например, каждые 1 час)
-    query = "SELECT * FROM users WHERE id = %s"
-    parameters = {"id": 1}
-    task_id = "task_1"
-    scheduler.add_job(schedule_task, 'interval', hours=1, args=[query, parameters, task_id])
+
+    loop = asyncio.get_event_loop()
+
+    # Добавление проверки в планировщик (каждые 5с)
+    scheduler.add_job(
+        process_scheduled_tasks,
+        trigger=IntervalTrigger(seconds=5),
+        id="intervalTaskCheck",
+    )
 
     print("Scheduler started...")
 
+async def process_scheduled_tasks():
+    """Периодическая проверка задач в БД."""
+    current_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{current_time}] Checking for scheduled tasks... ")
+
+    # Получаем задачи, которые должны быть выполнены
+    task_ids = await fetch_scheduled_tasks(limit=10)
+
+    for task_id in task_ids:
+        print(f"Executing scheduled task {task_id}")
+
+        # Запуск задачи
+        execute_task.send(task_id)
+
+        # Обновляем статус задачи на "in_progress"
+        await update_task_status(task_id, "in_progress")
+
+async def fetch_scheduled_tasks(limit: int = 10):
+    """Получение задач с планируемым временем выполнения."""
+    query = f"""
+    SELECT id FROM {TASKS_TABLE} 
+    WHERE status = 'scheduled' AND scheduled_time <= :now 
+    ORDER BY scheduled_time ASC 
+    LIMIT :limit
+    """
+    now = datetime.utcnow()
+    rows = await database.fetch_all(query=query, values={"now": now, "limit": limit})
+    print([row["id"] for row in rows])
+    return [row["id"] for row in rows]
+
+ #    Создание или обновление задачи в расписании
+async def schedule_task(task_id: int, scheduled_time: datetime):
+    existing_task = await fetch_task_by_id(task_id)
+    print(existing_task.query)
+
+    if existing_task:
+        # Если задача уже существует, обновляем её
+        update_query = f"""
+            UPDATE {TASKS_TABLE} 
+            SET scheduled_time = :scheduled_time, status = 'scheduled'
+            WHERE id = :task_id
+            """
+        await database.execute(
+            query=update_query,
+            values={"scheduled_time": scheduled_time, "task_id": task_id}
+        )
+        print(f"Task {task_id} updated with new schedule at {scheduled_time}")
+    else:
+        # Если задачи нет, создаем новую запись
+        insert_query = f"""
+            INSERT INTO {TASKS_TABLE} (id, scheduled_time, status, query, parameters)
+            VALUES (:task_id, :scheduled_time, 'scheduled', :query, :parameters)
+            """
+        await database.execute(
+            query=insert_query,
+            values={
+                "task_id": task_id,
+                "scheduled_time": scheduled_time,
+                "query": query,
+                "parameters": parameters or {}
+            }
+        )
+        print(f"Task {task_id} created and scheduled at {scheduled_time}")
 
 # Функция для остановки планировщика (если нужно)
 def stop_scheduler():
     if scheduler.running:
         scheduler.shutdown()
         print("Scheduler stopped...")
+
+start_scheduler()

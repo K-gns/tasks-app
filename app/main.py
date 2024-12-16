@@ -1,7 +1,8 @@
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import RedirectResponse
-from .tasks import execute_task, schedule_task
+
+from .scheduler import start_scheduler, schedule_task
 from .models import TaskCreate
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -13,22 +14,26 @@ import json
 async def app_lifespan(app):
     """Обработчик жизненного цикла приложения."""
     # Действия при старте приложения
-    await connect_to_database()
+    await database.connect()
     await create_tables()
+
     yield
     # Действия при остановке приложения
-    await disconnect_from_database()
+    # await disconnect_from_database()
 
 app = FastAPI(lifespan=app_lifespan)
 templates = Jinja2Templates(directory="app/templates")
-
-# Заглушка для данных задач
-TASKS = [{"id": 1, "query": "SELECT * FROM users", "status": "pending"}]
+# start_scheduler()
 
 # Отображение списка задач
 @app.get("/", response_class=HTMLResponse)
 async def read_tasks(request: Request):
-    return templates.TemplateResponse("tasks.html", {"request": request, "tasks": TASKS})
+    query = "SELECT * FROM tasks"
+    tasks = await database.fetch_all(query)
+    return templates.TemplateResponse(
+        "tasks.html",
+        {"request": request, "tasks": tasks[::-1]}
+    )
 
 # Получение всех задач из базы данных
 @app.get("/tasks", response_class=HTMLResponse)
@@ -39,33 +44,6 @@ async def get_tasks(request: Request):
         "tasks.html",
         {"request": request, "tasks": tasks[::-1]}
     )
-
-# Создание задачи через API
-# @app.post("/tasks/create/api", response_class=HTMLResponse)
-# async def create_task(request: Request, task: TaskCreate):
-#     # Генерация уникального идентификатора задачи
-#     task_id = str(uuid.uuid4())
-#
-#     # Сериализация параметров запроса в строку (если они есть)
-#     parameters_str = json.dumps(task.parameters) if task.parameters else None
-#
-#     # Вставка задачи в базу данных
-#     query = """
-#     INSERT INTO tasks (query, parameters, status)
-#     VALUES (:query, :parameters, 'pending')
-#     """
-#     values = {
-#         "query": task.query,
-#         "parameters": parameters_str
-#     }
-#
-#     try:
-#         # Асинхронная вставка задачи в таблицу
-#         await database.execute(query, values)
-#     except Exception as e:
-#         raise HTTPException(status_code=400, detail=f"Error inserting task: {str(e)}")
-#
-#     return templates.TemplateResponse("task_created.html", {"request": request, "task_id": task_id})
 
 # Создание задачи через форму
 @app.post("/tasks/create/", response_class=RedirectResponse)
@@ -105,12 +83,12 @@ async def create_task_form(request: Request,
     return RedirectResponse(url="/tasks", status_code=303)
 
 # Запуск задачи
-@app.post("/tasks/{task_id}/run")
-async def run_task(task_id: int):
-    # Запуск задачи через актор Dramatiq
-    print(f"Running task {task_id}")
-    execute_task.send(task_id)  # Отправляем задачу в очередь
-    return {"message": "Task started"}
+# @app.post("/tasks/{task_id}/run")
+# async def run_task(task_id: int):
+#     # Запуск задачи через актор Dramatiq
+#     print(f"Running task {task_id}")
+#     execute_task.send(task_id)  # Отправляем задачу в очередь
+#     return {"message": "Task started"}
 
 # Получение результатов задач
 @app.get("/tasks/results", response_class=HTMLResponse)

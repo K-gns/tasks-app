@@ -8,19 +8,27 @@ database = Database(DATABASE_URL, min_size=10, max_size=50)
 
 async def connect_to_database():
     """Подключение к базе данных."""
-    try:
-        await database.connect()
-        print("Connected to the database!")
-    except Exception as e:
-        print(f"Connection failed: {str(e)}")
+    if not database.is_connected:
+        try:
+            await database.connect()
+            print("Connected to the database!")
+        except Exception as e:
+            print(f"Connection failed: {str(e)}")
 
 async def disconnect_from_database():
     """Отключение от базы данных."""
-    try:
-        await database.disconnect()
-        print("Disconnected from the database!")
-    except Exception as e:
-        print(f"Disconnection failed: {str(e)}")
+    if database.is_connected:
+        try:
+            await database.disconnect()
+            print("Disconnected from the database!")
+        except Exception as e:
+            print(f"Disconnection failed: {str(e)}")
+
+# async def get_connection():
+#     """Получаем подключение из пула."""
+#     if not database.is_connected:
+#         await connect_to_database()
+#     return await database.connection()
 
 async def create_tables():
     """Создание таблиц для хранения задач и их результатов."""
@@ -29,7 +37,7 @@ async def create_tables():
         id SERIAL PRIMARY KEY,
         query TEXT NOT NULL,
         parameters JSON DEFAULT NULL,
-        status VARCHAR(50) DEFAULT 'pending',
+        status VARCHAR(50) DEFAULT 'scheduled',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         scheduled_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
