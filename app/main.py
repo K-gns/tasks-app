@@ -6,13 +6,15 @@ from .scheduler import start_scheduler, schedule_task
 from .models import TaskCreate
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from .db import database, connect_to_database, disconnect_from_database, create_tables
+from .db import database, connect_to_database, disconnect_from_database, create_tables, fetch_task_by_id
 import uuid
 import json
 
+from .tasks import TASKS_TABLE, execute_task
+
+
 # Асинхронный обработчик жизненного цикла приложения
 async def app_lifespan(app):
-    """Обработчик жизненного цикла приложения."""
     # Действия при старте приложения
     await database.connect()
     await create_tables()
@@ -38,7 +40,7 @@ async def read_tasks(request: Request):
 # Получение всех задач из базы данных
 @app.get("/tasks", response_class=HTMLResponse)
 async def get_tasks(request: Request):
-    query = "SELECT * FROM tasks"
+    query = "SELECT * FROM tasks ORDER BY id ASC;"
     tasks = await database.fetch_all(query)
     return templates.TemplateResponse(
         "tasks.html",
@@ -83,12 +85,74 @@ async def create_task_form(request: Request,
     return RedirectResponse(url="/tasks", status_code=303)
 
 # Запуск задачи
-# @app.post("/tasks/{task_id}/run")
-# async def run_task(task_id: int):
-#     # Запуск задачи через актор Dramatiq
-#     print(f"Running task {task_id}")
-#     execute_task.send(task_id)  # Отправляем задачу в очередь
-#     return {"message": "Task started"}
+@app.delete("/tasks/{task_id}/delete")
+async def run_task(task_id: int):
+    query = "DELETE FROM tasks WHERE id = :task_id"
+
+    try:
+        result = await database.execute(query, {"task_id": task_id})
+
+        if result == 0:
+            raise HTTPException(status_code=404, detail="Task not found")
+
+        return {"message": f"Task {task_id} deleted successfully"}
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error deleting task: {str(e)}")
+
+@app.post("/tasks/{task_id}/run")
+async def run_task_now(task_id: int):
+    query = f"SELECT * FROM {TASKS_TABLE} WHERE id = :task_id"
+    task = await database.fetch_one(query, {"task_id": task_id})
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    # Обновляем статус задачи на "in_progress"
+    update_query = f"UPDATE {TASKS_TABLE} SET status = 'in_progress' WHERE id = :task_id"
+    await database.execute(update_query, {"task_id": task_id})
+
+    # Выполняем задачу
+    print(f"Running task {task_id} immediately")
+    execute_task.send(task_id)  # Асинхронный запуск через Dramatiq
+
+    return {"message": f"Task {task_id} is running now"}
+
+@app.post("/tasks/{task_id}/reschedule/")
+async def reschedule_task(task_id: int, scheduled_time: str):
+    """
+    Снова планирует выполнение задачи на указанное время.
+    """
+
+    task = await fetch_task_by_id(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    # Парсим время из строки
+    try:
+        new_scheduled_time = datetime.fromisoformat(scheduled_time)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid datetime format. Use ISO format.")
+
+    # Обновляем запись задачи в БД
+    update_query = """
+       UPDATE tasks
+       SET scheduled_time = :scheduled_time, status = 'scheduled', updated_at = :updated_at
+       WHERE id = :task_id
+       """
+    await database.execute(
+        query=update_query,
+        values={
+            "scheduled_time": new_scheduled_time,
+            "updated_at": datetime.utcnow(),
+            "task_id": task_id,
+        }
+    )
+
+    # Добавляем задачу в планировщик
+    await schedule_task(task_id, new_scheduled_time)
+
+    return {"message": f"Task {task_id} rescheduled to {new_scheduled_time}"}
 
 # Получение результатов задач
 @app.get("/tasks/results", response_class=HTMLResponse)
@@ -99,3 +163,4 @@ async def get_task_results(request: Request):
         "results.html",
         {"request": request, "results": results},
     )
+

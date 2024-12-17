@@ -73,6 +73,10 @@ async def run_task(task_id: int):
 
         # Сохраняем результат в таблице результатов
         await save_task_result(task_id, "completed", result)
+
+        # Увеличить счетчик выполнений
+        await increment_task_execution_count(task_id)
+
         print(f"Task {task_id} completed successfully.")
 
     except Exception as e:
@@ -101,3 +105,11 @@ async def save_task_result(task_id: int, status: str, result: str):
     values = {"task_id": task_id, "status": status, "result": result}
     await database.execute(query=query, values=values)
 
+async def increment_task_execution_count(task_id: int):
+    """Увеличивает счетчик выполнений задачи."""
+    query = """
+    UPDATE tasks 
+    SET executed_count = executed_count + 1, updated_at = :updated_at 
+    WHERE id = :task_id
+    """
+    await database.execute(query, values={"task_id": task_id, "updated_at": datetime.utcnow()})

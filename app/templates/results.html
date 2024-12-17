@@ -24,6 +24,7 @@
         <thead>
             <tr>
                 <th>ID</th>
+                <th>Task ID</th>
                 <th>Query</th>
                 <th>Status</th>
                 <th>Parameters</th>
@@ -34,6 +35,7 @@
             {% for row in results %}
             <tr>
                 <td>{{ row.id }}</td>
+                <td>{{ row.task_id }}</td>
                 <td>{{ row.query }}</td>
                 <td>{{ row.status }}</td>
                 <td>{{ row.parameters }}</td>

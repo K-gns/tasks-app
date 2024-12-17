@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 
 # Подключение к PostgreSQL через databases
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://user:pwd123@db/tasks")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://user:password@db/tasks")
 database = Database(DATABASE_URL, min_size=10, max_size=50)
 
 async def connect_to_database():
@@ -35,9 +35,10 @@ async def create_tables():
     create_tasks_table_query = """
     CREATE TABLE IF NOT EXISTS tasks (
         id SERIAL PRIMARY KEY,
-        query TEXT NOT NULL,
+        query TEXT NOT NULL, -- SQL запрос
         parameters JSON DEFAULT NULL,
         status VARCHAR(50) DEFAULT 'scheduled',
+        executed_count INT DEFAULT 0, -- Счетчик выполнений
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         scheduled_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
