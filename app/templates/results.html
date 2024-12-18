@@ -3,46 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css">
     <title>Task Results</title>
     <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 0;
+        }
+
         table {
-            width: 100%;
+            width: 80%;
+            margin: 20px auto;
             border-collapse: collapse;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
-        table, th, td {
-            border: 1px solid black;
+
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-top: 20px;
         }
+
+        table {
+            width: 80%;
+            margin: 20px auto;
+            border-collapse: collapse;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
         th, td {
-            padding: 8px;
+            padding: 10px;
             text-align: left;
+            border: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #35abdc;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        tr:hover {
+            background-color: #ddd;
+        }
+
+        .container {
+            width: 90%;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .actions {
+            text-align: right;
+            margin-bottom: 20px;
+        }
+
+                button {
+            background-color: #35abdc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background-color: #2183aa;
         }
     </style>
 </head>
 <body>
+<div class="container">
     <h1>Task Results</h1>
+    <div class="actions">
+        <button onclick="window.location.reload();">Refresh</button>
+    </div>
     <table>
         <thead>
-            <tr>
-                <th>ID</th>
-                <th>Task ID</th>
-                <th>Query</th>
-                <th>Status</th>
-                <th>Parameters</th>
-                <th>Created At</th>
-            </tr>
+        <tr>
+            <th>ID</th>
+            <th>Task ID</th>
+            <th>Query</th>
+            <th>Status</th>
+            <th>Parameters</th>
+            <th>Completed at</th>
+        </tr>
         </thead>
         <tbody>
-            {% for row in results %}
-            <tr>
-                <td>{{ row.id }}</td>
-                <td>{{ row.task_id }}</td>
-                <td>{{ row.query }}</td>
-                <td>{{ row.status }}</td>
-                <td>{{ row.parameters }}</td>
-                <td>{{ row.created_at }}</td>
-            </tr>
-            {% endfor %}
+        {% for row in results %}
+        <tr>
+            <td>{{ row.id }}</td>
+            <td>{{ row.task_id }}</td>
+            <td>{{ row.query }}</td>
+            <td>{{ row.status }}</td>
+            <td>{{ row.parameters }}</td>
+            <td>{{ row.created_at }}</td>
+        </tr>
+        {% endfor %}
         </tbody>
     </table>
+</div>
 </body>
 </html>

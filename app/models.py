@@ -1,22 +1,16 @@
 # app/models.py
+from dataclasses import Field
+
 from databases import Database
 
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 
-class TaskCreate(BaseModel):
+class TaskForm(BaseModel):
     query: str
-    parameters: dict
+    parameters: Optional[str] = None
+    scheduled_time: Optional[str] = None
 
-# Пример модели, где запросы будут выполняться напрямую
-class TaskResult:
-    def __init__(self, task_id: int, status: str, result: str):
-        self.task_id = task_id
-        self.status = status
-        self.result = result
-
-class TaskCreate(BaseModel):
-    query: str  # Запрос, который нужно выполнить
-    parameters: Optional[dict] = None  # Параметры для запроса (если они есть)
-    scheduled_time: Optional[datetime] = None
+class rescheduleReq(BaseModel):
+    scheduled_time: str  # Запрос, который нужно выполнить

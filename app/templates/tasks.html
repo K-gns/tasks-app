@@ -69,6 +69,22 @@
             background-color: #45a049;
         }
 
+        button.deleteButton {
+            background-color: #a11d1d;
+        }
+
+        button.deleteButton:hover {
+            background-color: #8e1a1a;
+        }
+
+        button.runButton {
+            background-color: #2e8dca;
+        }
+
+        button.runButton:hover {
+            background-color: #246ea5;
+        }
+
         .pagination {
             text-align: center;
             margin-top: 20px;
@@ -159,10 +175,10 @@
             <td>{{ task.updated_at }}</td>
             <td>{{ task.scheduled_time }}</td>
             <td>
-                <button onclick="deleteTask('{{ task.id }}')"> delete</button>
+                <button onclick="deleteTask('{{ task.id }}')" class="deleteButton"> delete</button>
             </td>
             <td>
-                <button onclick="runTaskNow('{{ task.id }}')"> run now</button>
+                <button onclick="runTaskNow('{{ task.id }}')" class="runButton"> run</button>
             </td>
             <td>
                 <button onclick="openRescheduleForm('{{ task.id }}')">reschedule</button>
@@ -174,7 +190,9 @@
                         <input type="datetime-local" id="newScheduledTime-{{ task.id }}">
                         <br><br>
                         <button onclick="rescheduleTask('{{ task.id }}')" style="margin-bottom: 20px;">Submit</button>
-                        <button onclick="closeRescheduleModal('{{ task.id }}')" style="color: #484848;   background-color: transparent; border: 1px solid #ccc;">Cancel</button>
+                        <button onclick="closeRescheduleModal('{{ task.id }}')"
+                                style="color: #484848;   background-color: transparent; border: 1px solid #ccc;">Cancel
+                        </button>
                     </div>
                 </div>
             </td>
@@ -185,7 +203,7 @@
 
     <div class="container mt-5">
         <h2>Create Task</h2>
-        <form action="/tasks/create" method="POST">
+        <form id="task-form" action="/tasks/create" method="POST">
             <div class="mb-3">
                 <label for="query" class="form-label">SQL Query</label>
                 <textarea class="form-control" id="query" name="query" required></textarea>
@@ -272,20 +290,65 @@
             return;
         }
 
+        const newTimeFormated =  new Date(newTime).toISOString()
+
+        console.log(newTimeFormated)
+
         const response = await fetch(`/tasks/${taskId}/reschedule/`, {
             method: "POST",
-            headers: {"Content-Type": "application/x-www-form-urlencoded"},
-            body: `scheduled_time=${newTime}`
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ "scheduled_time": newTimeFormated })
         });
 
         if (response.ok) {
-            alert("Task succesfully scheduled!");
             window.location.reload();
         } else {
             const error = await response.json();
             alert("Ошибка: " + error.detail);
+            console.log(error)
         }
     }
+
+    // Отправка формы (нужно вместо дефолтной чтобы таймзону прикреплять)
+    document.getElementById('task-form').addEventListener('submit', async (event) => {
+        event.preventDefault(); // Останавливаем стандартное поведение формы
+
+        console.log("from fetch")
+
+        const query = document.getElementById('query').value;
+        const parameters = document.getElementById('parameters').value;
+        const scheduled_time = document.getElementById('scheduled_time').value;
+
+        const formData = {
+            query: query,
+            parameters: parameters ? parameters : null,
+            scheduled_time: scheduled_time ? new Date(scheduled_time).toISOString() : null //Время сразу в utc формате
+        };
+
+        console.log(formData)
+
+        try {
+            const response = await fetch('/tasks/create/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData),
+            });
+
+            if (response.ok) {
+                // Перенаправление на список задач
+                window.location.href = "/tasks";
+            } else {
+                const errorData = await response.json();
+                console.error('Ошибка:', errorData.detail);
+                alert(`Ошибка: ${errorData.detail}`);
+            }
+        } catch (error) {
+            console.error('Ошибка запроса:', error);
+            alert('Произошла ошибка при отправке данных.');
+        }
+    });
 </script>
 </body>
 </html>

@@ -1,13 +1,14 @@
 from datetime import datetime
-from fastapi import FastAPI, Request, Form, HTTPException
-from fastapi.responses import RedirectResponse
+from dateutil import parser, tz
 
-from .scheduler import start_scheduler, schedule_task
-from .models import TaskCreate
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request, Form, HTTPException, Body
+from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
-from .db import database, connect_to_database, disconnect_from_database, create_tables, fetch_task_by_id
-import uuid
+
+from .models import TaskForm, rescheduleReq
+from .scheduler import start_scheduler, schedule_task
+
+from .db import database, create_tables, fetch_task_by_id
 import json
 
 from .tasks import TASKS_TABLE, execute_task
@@ -40,25 +41,29 @@ async def read_tasks(request: Request):
 # Получение всех задач из базы данных
 @app.get("/tasks", response_class=HTMLResponse)
 async def get_tasks(request: Request):
-    query = "SELECT * FROM tasks ORDER BY id ASC;"
+    query = "SELECT * FROM tasks ORDER BY id DESC;"
     tasks = await database.fetch_all(query)
     return templates.TemplateResponse(
         "tasks.html",
-        {"request": request, "tasks": tasks[::-1]}
+        {"request": request, "tasks": tasks}
     )
 
 # Создание задачи через форму
 @app.post("/tasks/create/", response_class=RedirectResponse)
 async def create_task_form(request: Request,
-                            query: str = Form(...),  # Получаем запрос через форму
-                            parameters: str = Form(None),  # Получаем параметры как строку
-                            scheduled_time: str = Form(None)):  # Получаем время запуска
+                            task: TaskForm):  # Получаем время запуска
 
     # Преобразование строки параметров в словарь, если они присутствуют
-    parameters_dict = json.loads(parameters) if parameters else None
+    parameters_dict = json.loads(task.parameters) if task.parameters else None
 
     # Преобразуем время запуска из строки в объект datetime, если оно указано
-    scheduled_time = datetime.fromisoformat(scheduled_time) if scheduled_time else None
+    if task.scheduled_time:
+        # Парсим время из ISO-формата
+        scheduled_time = parser.isoparse(task.scheduled_time).replace(tzinfo=None)
+    else:
+        # Если время не указано, ставим текущее время
+        scheduled_time = datetime.utcnow()
+
 
     # SQL-запрос для вставки задачи
     query_insert = """
@@ -69,20 +74,30 @@ async def create_task_form(request: Request,
 
     # Подготовка значений для вставки
     values = {
-        "query": query,
+        "query": task.query,
         "parameters": json.dumps(parameters_dict) if parameters_dict else None,
-        "scheduled_time": scheduled_time or datetime.utcnow()  # Если время не указано, ставим текущее время
+        "scheduled_time": scheduled_time
     }
 
     try:
         # Выполняем запрос вставки и получаем task_id
-        task = await database.fetch_one(query_insert, values)
+        taskRes = await database.fetch_one(query_insert, values)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error inserting task: {str(e)}")
 
-    await schedule_task(task['id'], task['scheduled_time'])
+    await schedule_task(taskRes['id'], taskRes['scheduled_time'])
 
     return RedirectResponse(url="/tasks", status_code=303)
+
+# Результаты задач
+@app.get("/tasks/results", response_class=HTMLResponse)
+async def get_task_results(request: Request):
+    query = "SELECT * FROM task_results ORDER BY id DESC"
+    results = await database.fetch_all(query)
+    return templates.TemplateResponse(
+        "results.html",
+        {"request": request, "results": results},
+    )
 
 # Запуск задачи
 @app.delete("/tasks/{task_id}/delete")
@@ -119,10 +134,11 @@ async def run_task_now(task_id: int):
     return {"message": f"Task {task_id} is running now"}
 
 @app.post("/tasks/{task_id}/reschedule/")
-async def reschedule_task(task_id: int, scheduled_time: str):
+async def reschedule_task(task_id: int, request: rescheduleReq):
     """
     Снова планирует выполнение задачи на указанное время.
     """
+    scheduled_time = request.scheduled_time
 
     task = await fetch_task_by_id(task_id)
     if not task:
@@ -130,7 +146,7 @@ async def reschedule_task(task_id: int, scheduled_time: str):
 
     # Парсим время из строки
     try:
-        new_scheduled_time = datetime.fromisoformat(scheduled_time)
+        new_scheduled_time = parser.isoparse(scheduled_time).replace(tzinfo=None)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid datetime format. Use ISO format.")
 
@@ -154,13 +170,6 @@ async def reschedule_task(task_id: int, scheduled_time: str):
 
     return {"message": f"Task {task_id} rescheduled to {new_scheduled_time}"}
 
-# Получение результатов задач
-@app.get("/tasks/results", response_class=HTMLResponse)
-async def get_task_results(request: Request):
-    query = "SELECT * FROM task_results"
-    results = await database.fetch_all(query)
-    return templates.TemplateResponse(
-        "results.html",
-        {"request": request, "results": results},
-    )
+
+
 

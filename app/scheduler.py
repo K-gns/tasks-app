@@ -60,13 +60,11 @@ async def fetch_scheduled_tasks(limit: int = 10):
     """
     now = datetime.utcnow()
     rows = await database.fetch_all(query=query, values={"now": now, "limit": limit})
-    print([row["id"] for row in rows])
     return [row["id"] for row in rows]
 
  #    Создание или обновление задачи в расписании
 async def schedule_task(task_id: int, scheduled_time: datetime):
     existing_task = await fetch_task_by_id(task_id)
-    print(existing_task.query)
 
     if existing_task:
         # Если задача уже существует, обновляем её
