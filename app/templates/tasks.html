@@ -151,8 +151,9 @@
         <thead>
         <tr>
             <th>ID</th>
-            <th>Query</th>
-            <th>Parameters</th>
+            <th>Task type</th>
+            <th>Connstr /<br/> API url</th>
+            <th style="min-width: 300px;">Query /<br/> payload</th>
             <th>Completed count</th>
             <th>Status</th>
             <th>Created At</th>
@@ -167,8 +168,19 @@
         {% for task in tasks %}
         <tr>
             <td>{{ task.id }}</td>
-            <td>{{ task.query }}</td>
-            <td>{{ task.parameters }}</td>
+            <td>{{ task.task_type }}</td>
+            {% if task.task_type == 'SQL' %}
+            <td>{{ task.sql_connstr }}</td>
+            {% elif task.task_type == 'API' %}
+            <td>{{ task.api_endpoint }}</td>
+            {% endif %}
+            {% if task.task_type == 'SQL' %}
+            <td style="min-width: 300px;"> {{ task.query }}</td>
+            {% elif task.task_type == 'API' %}
+            <td style="min-width: 300px;">{{ task.parameters }}</td>
+            {% endif %}
+
+
             <td>{{ task.executed_count }} times</td>
             <td>{{ task.status }}</td>
             <td>{{ task.created_at }}</td>
@@ -204,14 +216,49 @@
     <div class="container mt-5">
         <h2>Create Task</h2>
         <form id="task-form" action="/tasks/create" method="POST">
+            <!-- Тип задачи -->
             <div class="mb-3">
-                <label for="query" class="form-label">SQL Query</label>
-                <textarea class="form-control" id="query" name="query" required></textarea>
+                <label for="task_type" class="form-label">Task Type</label>
+                <select class="form-control" id="task_type" name="task_type" required>
+                    <option value="SQL">SQL</option>
+                    <option value="API">API</option>
+                </select>
             </div>
-            <div class="mb-3">
-                <label for="parameters" class="form-label">Parameters (optional, JSON format)</label>
-                <input type="text" class="form-control" id="parameters" name="parameters">
+
+            <!-- Поля для SQL -->
+            <div id="sql-fields">
+                <div class="mb-3">
+                    <label for="connstr" class="form-label">SQL connection string</label>
+                    <textarea class="form-control" id="connstr" name="connstr"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label for="query" class="form-label">SQL Query</label>
+                    <textarea class="form-control" id="query" name="query"></textarea>
+                </div>
             </div>
+
+            <!-- Поля для API -->
+            <div id="api-fields" style="display: none;">
+                <div class="mb-3">
+                    <label for="api_endpoint" class="form-label">API Endpoint</label>
+                    <input type="text" class="form-control" id="api_endpoint" name="api_endpoint">
+                </div>
+                <div class="mb-3">
+                    <label for="api_method" class="form-label">HTTP Method</label>
+                    <select class="form-control" id="api_method" name="api_method">
+                        <option value="POST">POST</option>
+                        <option value="GET">GET</option>
+                        <option value="PUT">PUT</option>
+                        <option value="DELETE">DELETE</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="api_payload" class="form-label">Payload (optional, JSON format)</label>
+                    <textarea class="form-control" id="api_payload" name="parameters"></textarea>
+                </div>
+            </div>
+
+            <!-- Общее поле для запланированного времени -->
             <div class="mb-3">
                 <label for="scheduled_time">Scheduled Time (optional):</label><br>
                 <input type="datetime-local" id="scheduled_time" name="scheduled_time"><br><br>
@@ -290,14 +337,14 @@
             return;
         }
 
-        const newTimeFormated =  new Date(newTime).toISOString()
+        const newTimeFormated = new Date(newTime).toISOString()
 
         console.log(newTimeFormated)
 
         const response = await fetch(`/tasks/${taskId}/reschedule/`, {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ "scheduled_time": newTimeFormated })
+            body: JSON.stringify({"scheduled_time": newTimeFormated})
         });
 
         if (response.ok) {
@@ -315,15 +362,26 @@
 
         console.log("from fetch")
 
-        const query = document.getElementById('query').value;
-        const parameters = document.getElementById('parameters').value;
+        const taskType = document.getElementById('task_type').value;
         const scheduled_time = document.getElementById('scheduled_time').value;
 
+        // Общие данные
         const formData = {
-            query: query,
-            parameters: parameters ? parameters : null,
-            scheduled_time: scheduled_time ? new Date(scheduled_time).toISOString() : null //Время сразу в utc формате
+            task_type: taskType,
+            scheduled_time: scheduled_time ? new Date(scheduled_time).toISOString() : null // UTC формат времени
         };
+
+        if (taskType === "SQL") {
+            // Поля для SQL задачи
+            formData.sql_connstr = document.getElementById('connstr').value;
+            formData.query = document.getElementById('query').value;
+        } else if (taskType === "API") {
+            // Поля для API задачи
+            formData.api_endpoint = document.getElementById('api_endpoint').value;
+            formData.api_method = document.getElementById('api_method').value;
+            const apiPayload = document.getElementById('api_payload').value;
+            formData.parameters = apiPayload ? apiPayload : null;
+        }
 
         console.log(formData)
 
@@ -347,6 +405,21 @@
         } catch (error) {
             console.error('Ошибка запроса:', error);
             alert('Произошла ошибка при отправке данных.');
+        }
+    });
+
+    //Для интерфейса переключения типа таски
+    document.getElementById("task_type").addEventListener("change", function () {
+        const taskType = this.value;
+        const sqlFields = document.getElementById("sql-fields");
+        const apiFields = document.getElementById("api-fields");
+
+        if (taskType === "SQL") {
+            sqlFields.style.display = "block";
+            apiFields.style.display = "none";
+        } else if (taskType === "API") {
+            sqlFields.style.display = "none";
+            apiFields.style.display = "block";
         }
     });
 </script>

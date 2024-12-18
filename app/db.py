@@ -35,7 +35,11 @@ async def create_tables():
     create_tasks_table_query = """
     CREATE TABLE IF NOT EXISTS tasks (
         id SERIAL PRIMARY KEY,
-        query TEXT NOT NULL, -- SQL запрос
+        sql_connstr TEXT DEFAULT NULL,  -- API endpoint, если тип задачи API
+        query TEXT NULL, -- SQL запрос
+        api_endpoint TEXT DEFAULT NULL,  -- API endpoint, если тип задачи API
+        api_method VARCHAR(10) DEFAULT 'POST',
+        task_type VARCHAR(50) NOT NULL, 
         parameters JSON DEFAULT NULL,
         status VARCHAR(50) DEFAULT 'scheduled',
         executed_count INT DEFAULT 0, -- Счетчик выполнений
@@ -50,6 +54,7 @@ async def create_tables():
         task_id INT NOT NULL,
         status VARCHAR(50) NOT NULL,
         result TEXT,
+        error_message TEXT DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE CASCADE
     );

@@ -8,7 +8,11 @@ from typing import Optional
 from datetime import datetime
 
 class TaskForm(BaseModel):
-    query: str
+    task_type: str
+    query: Optional[str] = None
+    sql_connstr: Optional[str] = None
+    api_endpoint: Optional[str] = None
+    api_method: Optional[str] = None
     parameters: Optional[str] = None
     scheduled_time: Optional[str] = None
 

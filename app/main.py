@@ -67,14 +67,20 @@ async def create_task_form(request: Request,
 
     # SQL-запрос для вставки задачи
     query_insert = """
-    INSERT INTO tasks (query, parameters, status, scheduled_time)
-    VALUES (:query, :parameters, 'pending', :scheduled_time)
+    INSERT INTO tasks (task_type, query, sql_connstr, api_endpoint, api_method, parameters, status, scheduled_time)
+    VALUES (:task_type, :query, :sql_connstr, :api_endpoint, :api_method, :parameters, 'pending', :scheduled_time)
     RETURNING id, query, parameters, status, created_at, updated_at, scheduled_time
     """
 
+    print(query_insert)
+
     # Подготовка значений для вставки
     values = {
+        "task_type": task.task_type,
         "query": task.query,
+        "sql_connstr": task.sql_connstr,
+        "api_endpoint": task.api_endpoint,
+        "api_method": task.api_method,
         "parameters": json.dumps(parameters_dict) if parameters_dict else None,
         "scheduled_time": scheduled_time
     }
@@ -170,6 +176,14 @@ async def reschedule_task(task_id: int, request: rescheduleReq):
 
     return {"message": f"Task {task_id} rescheduled to {new_scheduled_time}"}
 
+#Тестовое
+@app.post("/test")
+async def test_task(request: Request):
+    """Тестовый эндпоинт, который выводит весь запрос в консоль."""
+    body = await request.json()  # Получаем JSON из тела запроса
+    current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
 
+    print(f"Received request at {current_time}, body: {body}")
 
+    return {"message": "Request received and printed to console."}
 

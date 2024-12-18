@@ -1,6 +1,9 @@
 import json
+# import httpx
 import os
 import dramatiq
+import httpx
+from databases import Database
 from dramatiq import actor, Middleware
 from dramatiq.brokers.redis import RedisBroker
 from dramatiq.middleware import AsyncIO
@@ -40,7 +43,7 @@ TASKS_TABLE = "tasks"
 RESULTS_TABLE = "task_results"
 
 # Actor для обработки задач
-@actor(max_retries=3)  # Автоматический перезапуск до 3 раз при сбоях
+@actor(max_retries=3, min_backoff=5, max_backoff=5)  # Автоматический перезапуск до 3 раз при сбоях
 async def execute_task(task_id: int):
     if not database.is_connected:
         await database.connect()
@@ -67,7 +70,16 @@ async def run_task(task_id: int):
     # Обновляем статус задачи на "running"
     await update_task_status(task_id, "running")
 
+    task_type = task["task_type"]
+
     try:
+        if task_type == "SQL":
+            result = await execute_sql_query(task["sql_connstr"], task["query"], task["parameters"] or {})
+        elif task_type == "API":
+            result = await call_api(task["api_endpoint"], task["parameters"] or {})
+        else:
+            raise ValueError(f"Unsupported task type: {task_type}")
+
         # Выполняем задачу (например, выполнение запроса)
         result = f"Executed query: {task['query']} with parameters: {task['parameters']}"
 
@@ -84,6 +96,36 @@ async def run_task(task_id: int):
         error_message = str(e)
         await save_task_result(task_id, "failed", error_message)
         print(f"Task {task_id} failed with error: {error_message}")
+
+
+async def execute_sql_query(connstr: str, query: str, parameters: dict):
+    """Выполняет SQL-запрос к базе данных с использованием строки подключения."""
+    database = Database(connstr)
+
+    try:
+        await database.connect()
+        result = await database.execute(query, parameters) #Выполняем запрос
+        return result
+    except Exception as e:
+        raise RuntimeError(f"SQL execution failed: {e}")
+    finally:
+        await database.disconnect()  # Закрываем подключение
+
+
+async def call_api(endpoint: str, payload: dict):
+    """Выполняет HTTP-запрос к API."""
+    """Выполняет HTTP-запрос к API."""
+    print("we in call api")
+    async with httpx.AsyncClient(
+            timeout=httpx.Timeout(10.0, read=5.0, write=5.0),
+            follow_redirects=True
+    ) as client:
+        try:
+            response = await client.post(endpoint, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(f"API call failed: {e.response.text}")
 
 
 async def update_task_status(task_id: int, status: str):
