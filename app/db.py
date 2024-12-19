@@ -11,7 +11,7 @@ async def create_tables():
     create_tasks_table_query = """
     CREATE TABLE IF NOT EXISTS tasks (
         id SERIAL PRIMARY KEY,
-        sql_connstr TEXT DEFAULT NULL,  -- API endpoint, если тип задачи API
+        sql_connstr TEXT DEFAULT NULL,  -- Строка для подключения к БД, если тип задачи SQL
         query TEXT NULL, -- SQL запрос
         api_endpoint TEXT DEFAULT NULL,  -- API endpoint, если тип задачи API
         api_method VARCHAR(10) DEFAULT 'POST',

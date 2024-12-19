@@ -22,8 +22,6 @@ def start_scheduler():
         scheduler.start()
 
 
-    loop = asyncio.get_event_loop()
-
     # Добавление проверки в планировщик (каждые 5с)
     scheduler.add_job(
         process_scheduled_tasks,
@@ -78,22 +76,6 @@ async def schedule_task(task_id: int, scheduled_time: datetime):
             values={"scheduled_time": scheduled_time, "task_id": task_id}
         )
         print(f"Task {task_id} updated with new schedule at {scheduled_time}")
-    else:
-        # Если задачи нет, создаем новую запись
-        insert_query = f"""
-            INSERT INTO {TASKS_TABLE} (id, scheduled_time, status, query, parameters)
-            VALUES (:task_id, :scheduled_time, 'scheduled', :query, :parameters)
-            """
-        await database.execute(
-            query=insert_query,
-            values={
-                "task_id": task_id,
-                "scheduled_time": scheduled_time,
-                "query": query,
-                "parameters": parameters or {}
-            }
-        )
-        print(f"Task {task_id} created and scheduled at {scheduled_time}")
 
 # Функция для остановки планировщика (при необходимости)
 def stop_scheduler():

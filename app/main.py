@@ -41,12 +41,12 @@ async def get_tasks(request: Request):
 # Создание задачи через форму
 @app.post("/tasks/create/", response_class=RedirectResponse)
 async def create_task_form(request: Request,
-                            task: TaskForm):  # Получаем время запуска
+                            task: TaskForm):
 
     # Преобразование строки параметров в словарь, если они присутствуют
     parameters_dict = json.loads(task.parameters) if task.parameters else None
 
-    # Преобразуем время запуска из строки в объект datetime, если оно указано
+    # Если время указано, то парсим
     if task.scheduled_time:
         # Парсим время из ISO-формата
         scheduled_time = parser.isoparse(task.scheduled_time).replace(tzinfo=None)
@@ -74,7 +74,6 @@ async def create_task_form(request: Request,
     }
 
     try:
-        # Выполняем запрос вставки и получаем task_id
         taskRes = await database.fetch_one(query_insert, values)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error inserting task: {str(e)}")
@@ -91,7 +90,7 @@ async def get_task_results(request: Request):
         {"request": request, "results": results},
     )
 
-# Запуск задачи
+# Удаление задачи
 @app.delete("/tasks/{task_id}/delete")
 async def run_task(task_id: int):
     query = "DELETE FROM tasks WHERE id = :task_id"
@@ -107,6 +106,7 @@ async def run_task(task_id: int):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error deleting task: {str(e)}")
 
+#Запуск задачи (напрямую)
 @app.post("/tasks/{task_id}/run")
 async def run_task_now(task_id: int):
     query = f"SELECT * FROM {TASKS_TABLE} WHERE id = :task_id"
@@ -124,6 +124,7 @@ async def run_task_now(task_id: int):
     execute_task.send(task_id)  #  Запуск через Dramatiq
 
     return {"message": f"Task {task_id} is running now"}
+
 
 @app.post("/tasks/{task_id}/reschedule/")
 async def reschedule_task(task_id: int, request: rescheduleReq):
@@ -162,10 +163,10 @@ async def reschedule_task(task_id: int, request: rescheduleReq):
 
     return {"message": f"Task {task_id} rescheduled to {new_scheduled_time}"}
 
-#Тестовое
+#Тестовое API
 @app.post("/test")
 async def test_task(request: Request):
-    """Тестовый эндпоинт, который выводит весь запрос в консоль."""
+    """Тестовый эндпоинт, который выводит запрос в консоль."""
     body = await request.json()  # Получаем JSON из тела запроса
     current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
 

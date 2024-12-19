@@ -20,7 +20,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: dramatiq app.tasks --processes 1 --threads 1
+    command: dramatiq app.tasks --processes 2 --threads 2
     depends_on:
       - redis
     environment:
