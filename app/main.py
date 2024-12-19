@@ -72,8 +72,6 @@ async def create_task_form(request: Request,
     RETURNING id, query, parameters, status, created_at, updated_at, scheduled_time
     """
 
-    print(query_insert)
-
     # Подготовка значений для вставки
     values = {
         "task_type": task.task_type,
@@ -90,8 +88,6 @@ async def create_task_form(request: Request,
         taskRes = await database.fetch_one(query_insert, values)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error inserting task: {str(e)}")
-
-    await schedule_task(taskRes['id'], taskRes['scheduled_time'])
 
     return RedirectResponse(url="/tasks", status_code=303)
 
@@ -185,5 +181,5 @@ async def test_task(request: Request):
 
     print(f"Received request at {current_time}, body: {body}")
 
-    return {"message": "Request received and printed to console."}
+    return {"message": f"Request received on test api (body: {body})"}
 

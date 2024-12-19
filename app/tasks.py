@@ -80,9 +80,6 @@ async def run_task(task_id: int):
         else:
             raise ValueError(f"Unsupported task type: {task_type}")
 
-        # Выполняем задачу (например, выполнение запроса)
-        result = f"Executed query: {task['query']} with parameters: {task['parameters']}"
-
         # Сохраняем результат в таблице результатов
         await save_task_result(task_id, "completed", result)
 
@@ -92,9 +89,9 @@ async def run_task(task_id: int):
         print(f"Task {task_id} completed successfully.")
 
     except Exception as e:
-        # В случае ошибки обновляем статус задачи на "failed"
+        # В случае ошибки обновляем статус задачи на "failed" и записываем строку ошибки
         error_message = str(e)
-        await save_task_result(task_id, "failed", error_message)
+        await save_task_result(task_id, "failed", "Error", error_message)
         print(f"Task {task_id} failed with error: {error_message}")
 
 
@@ -115,7 +112,6 @@ async def execute_sql_query(connstr: str, query: str, parameters: dict):
 async def call_api(endpoint: str, payload: dict):
     """Выполняет HTTP-запрос к API."""
     """Выполняет HTTP-запрос к API."""
-    print("we in call api")
     async with httpx.AsyncClient(
             timeout=httpx.Timeout(10.0, read=5.0, write=5.0),
             follow_redirects=True
@@ -123,7 +119,9 @@ async def call_api(endpoint: str, payload: dict):
         try:
             response = await client.post(endpoint, json=payload)
             response.raise_for_status()
-            return response.json()
+
+            # возвращаем ответ строкой
+            return json.dumps(response.json())
         except httpx.HTTPStatusError as e:
             raise RuntimeError(f"API call failed: {e.response.text}")
 
@@ -134,17 +132,17 @@ async def update_task_status(task_id: int, status: str):
     await database.execute(query=query, values={"status": status, "task_id": task_id})
 
 
-async def save_task_result(task_id: int, status: str, result: str):
+async def save_task_result(task_id: int, status: str, result: str, error_message: str = None):
     """Сохранение результата выполнения задачи."""
     # Обновляем статус задачи
     await update_task_status(task_id, status)
 
     # Сохраняем результат в таблицу результатов
     query = f"""
-    INSERT INTO {RESULTS_TABLE} (task_id, status, result) 
-    VALUES (:task_id, :status, :result)
+    INSERT INTO {RESULTS_TABLE} (task_id, status, result, error_message) 
+    VALUES (:task_id, :status, :result, :error_message)
     """
-    values = {"task_id": task_id, "status": status, "result": result}
+    values = {"task_id": task_id, "status": status, "result": result, "error_message": error_message}
     await database.execute(query=query, values=values)
 
 async def increment_task_execution_count(task_id: int):

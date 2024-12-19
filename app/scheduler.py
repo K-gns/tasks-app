@@ -54,7 +54,7 @@ async def fetch_scheduled_tasks(limit: int = 10):
     """Получение задач с планируемым временем выполнения."""
     query = f"""
     SELECT id FROM {TASKS_TABLE} 
-    WHERE status = 'scheduled' AND scheduled_time <= :now 
+    WHERE status IN ('scheduled', 'pending')  AND scheduled_time <= :now 
     ORDER BY scheduled_time ASC 
     LIMIT :limit
     """

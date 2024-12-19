@@ -90,8 +90,9 @@
         <tr>
             <th>ID</th>
             <th>Task ID</th>
-            <th>Query</th>
             <th>Status</th>
+            <th>Result</th>
+            <th>Error message</th>
             <th>Parameters</th>
             <th>Completed at</th>
         </tr>
@@ -101,8 +102,9 @@
         <tr>
             <td>{{ row.id }}</td>
             <td>{{ row.task_id }}</td>
-            <td>{{ row.query }}</td>
             <td>{{ row.status }}</td>
+            <td>{{ row.result }}</td>
+            <td>{{ row.error_message }}</td>
             <td>{{ row.parameters }}</td>
             <td>{{ row.created_at }}</td>
         </tr>

@@ -157,7 +157,7 @@
             <th>Completed count</th>
             <th>Status</th>
             <th>Created At</th>
-            <th>Updated At</th>
+<!--            <th>Updated At</th>-->
             <th>Scheduled At</th>
             <th></th>
             <th></th>
@@ -184,7 +184,7 @@
             <td>{{ task.executed_count }} times</td>
             <td>{{ task.status }}</td>
             <td>{{ task.created_at }}</td>
-            <td>{{ task.updated_at }}</td>
+<!--            <td>{{ task.updated_at }}</td>-->
             <td>{{ task.scheduled_time }}</td>
             <td>
                 <button onclick="deleteTask('{{ task.id }}')" class="deleteButton"> delete</button>
@@ -225,7 +225,7 @@
                 </select>
             </div>
 
-            <!-- Поля для SQL -->
+            <!-- Поля для SQL запроса -->
             <div id="sql-fields">
                 <div class="mb-3">
                     <label for="connstr" class="form-label">SQL connection string</label>
@@ -237,7 +237,7 @@
                 </div>
             </div>
 
-            <!-- Поля для API -->
+            <!-- Поля для API запроса -->
             <div id="api-fields" style="display: none;">
                 <div class="mb-3">
                     <label for="api_endpoint" class="form-label">API Endpoint</label>
