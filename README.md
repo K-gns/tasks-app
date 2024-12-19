@@ -12,7 +12,7 @@ Backend: FastAPI
 Клонируйте репозиторий:
 
 ```bash
-git clone https://github.com/your-username/queriescheduler.git
+git clone https://github.com/K-gns/tasks-app.git
 ```
 
 Перейдите в каталог проекта:
