@@ -29,16 +29,6 @@ templates = Jinja2Templates(directory="app/templates")
 # start_scheduler()
 
 # Отображение списка задач
-@app.get("/", response_class=HTMLResponse)
-async def read_tasks(request: Request):
-    query = "SELECT * FROM tasks"
-    tasks = await database.fetch_all(query)
-    return templates.TemplateResponse(
-        "tasks.html",
-        {"request": request, "tasks": tasks[::-1]}
-    )
-
-# Получение всех задач из базы данных
 @app.get("/tasks", response_class=HTMLResponse)
 async def get_tasks(request: Request):
     query = "SELECT * FROM tasks ORDER BY id DESC;"

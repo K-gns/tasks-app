@@ -1,5 +1,5 @@
 import json
-# import httpx
+import httpx
 import os
 import dramatiq
 from databases import Database
@@ -27,7 +27,7 @@ TASKS_TABLE = "tasks"
 RESULTS_TABLE = "task_results"
 
 # Actor для обработки задач
-@actor(max_retries=3, min_backoff=5, max_backoff=5)  # Автоматический перезапуск до 3 раз при сбоях
+@actor(max_retries=3, min_backoff=5, max_backoff=5)
 async def execute_task(task_id: int):
     if not database.is_connected:
         await database.connect()
@@ -59,6 +59,7 @@ async def run_task(task_id: int):
     try:
         if task_type == "SQL":
             result = await execute_sql_query(task["sql_connstr"], task["query"], task["parameters"] or {})
+            result = f"Query completed successfully, result: {result}"
         elif task_type == "API":
             result = await call_api(task["api_endpoint"], task["parameters"] or {})
         else:
