@@ -1,8 +1,3 @@
-# app/models.py
-from dataclasses import Field
-
-from databases import Database
-
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime

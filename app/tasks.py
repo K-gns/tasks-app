@@ -2,30 +2,14 @@ import json
 # import httpx
 import os
 import dramatiq
-import httpx
 from databases import Database
 from dramatiq import actor, Middleware
 from dramatiq.brokers.redis import RedisBroker
 from dramatiq.middleware import AsyncIO
-from datetime import datetime, timedelta
+from datetime import datetime
 # from app.database_middleware import DatabaseMiddleware
 import redis
-from .db import database, connect_to_database, disconnect_from_database, fetch_task_by_id
-import asyncio
-
-class DatabaseMiddleware(Middleware):
-    """Middleware для подключения к базе данных."""
-    def before_task(self, broker, message):
-        """Подключение к базе перед выполнением задачи."""
-        if not database.is_connected:
-            broker.logger.debug("Connecting to database.")
-            broker.loop.run_until_complete(database.connect())
-
-    def after_task(self, broker, message, result=None, exception=None):
-        """Закрытие соединения после выполнения задачи."""
-        if database.is_connected:
-            broker.logger.debug("Disconnecting from database.")
-            broker.loop.run_until_complete(database.disconnect())
+from .db import database, fetch_task_by_id
 
 # Настройка брокера Redis
 redis_host = os.getenv("REDIS_HOST", "redis")

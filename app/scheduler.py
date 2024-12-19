@@ -95,7 +95,7 @@ async def schedule_task(task_id: int, scheduled_time: datetime):
         )
         print(f"Task {task_id} created and scheduled at {scheduled_time}")
 
-# Функция для остановки планировщика (если нужно)
+# Функция для остановки планировщика (при необходимости)
 def stop_scheduler():
     if scheduler.running:
         scheduler.shutdown()

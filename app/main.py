@@ -14,7 +14,7 @@ import json
 from .tasks import TASKS_TABLE, execute_task
 
 
-# Асинхронный обработчик жизненного цикла приложения
+# Обработчик жизненного цикла приложения
 async def app_lifespan(app):
     # Действия при старте приложения
     await database.connect()
@@ -131,7 +131,7 @@ async def run_task_now(task_id: int):
 
     # Выполняем задачу
     print(f"Running task {task_id} immediately")
-    execute_task.send(task_id)  # Асинхронный запуск через Dramatiq
+    execute_task.send(task_id)  #  Запуск через Dramatiq
 
     return {"message": f"Task {task_id} is running now"}
 

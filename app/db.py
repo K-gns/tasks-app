@@ -6,30 +6,6 @@ from datetime import datetime
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://user:password@db/tasks")
 database = Database(DATABASE_URL, min_size=10, max_size=50)
 
-async def connect_to_database():
-    """Подключение к базе данных."""
-    if not database.is_connected:
-        try:
-            await database.connect()
-            print("Connected to the database!")
-        except Exception as e:
-            print(f"Connection failed: {str(e)}")
-
-async def disconnect_from_database():
-    """Отключение от базы данных."""
-    if database.is_connected:
-        try:
-            await database.disconnect()
-            print("Disconnected from the database!")
-        except Exception as e:
-            print(f"Disconnection failed: {str(e)}")
-
-# async def get_connection():
-#     """Получаем подключение из пула."""
-#     if not database.is_connected:
-#         await connect_to_database()
-#     return await database.connection()
-
 async def create_tables():
     """Создание таблиц для хранения задач и их результатов."""
     create_tasks_table_query = """
@@ -73,17 +49,3 @@ async def fetch_task_by_id(task_id: int):
     result = await database.fetch_one(query, values={"id": task_id})
     return result
 
-async def save_task_result(task_id: int, status: str, result: str):
-    """Сохранение результата выполнения задачи."""
-    query = """
-    INSERT INTO task_results (task_id, status, result)
-    VALUES (:task_id, :status, :result)
-    """
-    await database.execute(query, values={"task_id": task_id, "status": status, "result": result})
-
-async def update_task_status(task_id: int, status: str):
-    """Обновление статуса задачи."""
-    query = """
-    UPDATE tasks SET status = :status, updated_at = :updated_at WHERE id = :task_id
-    """
-    await database.execute(query, values={"task_id": task_id, "status": status, "updated_at": datetime.utcnow()})
